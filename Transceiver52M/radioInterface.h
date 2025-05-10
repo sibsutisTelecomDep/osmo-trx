@@ -12,18 +12,17 @@
 
 */
 
-
-
-#include "sigProcLib.h"
+#include "Channelizer.h"
 #include "GSMCommon.h"
 #include "LinkedLists.h"
+#include "Resampler.h"
+#include "Synthesis.h"
+#include "metricCollector.hpp"
+#include "radioBuffer.h"
+#include "radioClock.h"
 #include "radioDevice.h"
 #include "radioVector.h"
-#include "radioClock.h"
-#include "radioBuffer.h"
-#include "Resampler.h"
-#include "Channelizer.h"
-#include "Synthesis.h"
+#include "sigProcLib.h"
 
 static const unsigned gSlotLen = 148;      ///< number of symbols per slot, not counting guard periods
 
@@ -59,18 +58,21 @@ protected:
   bool mOn;				      ///< indicates radio is on
 
 private:
+#define METRIC_COLLECT
+ SignalMetricsCollector *metricsCollector;
+#endif  // METRIC_COLLECT
 
-  /** format samples to USRP */
-  int radioifyVector(signalVector &wVector, size_t chan, bool zero);
+ /** format samples to USRP */
+ int radioifyVector(signalVector &wVector, size_t chan, bool zero);
 
-  /** format samples from USRP */
-  int unRadioifyVector(signalVector *wVector, size_t chan);
+ /** format samples from USRP */
+ int unRadioifyVector(signalVector *wVector, size_t chan);
 
-  /** push GSM bursts into the transmit buffer */
-  virtual bool pushBuffer(void);
+ /** push GSM bursts into the transmit buffer */
+ virtual bool pushBuffer(void);
 
-  /** pull GSM bursts from the receive buffer */
-  virtual int pullBuffer(void);
+ /** pull GSM bursts from the receive buffer */
+ virtual int pullBuffer(void);
 
 public:
 

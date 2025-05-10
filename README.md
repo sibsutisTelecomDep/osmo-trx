@@ -1,3 +1,11 @@
+
+Установка (blank)
+=============
+
+```bash
+git clone --recursive git@github.com:sibsutisTelecomDep/osmo-trx.git
+```
+
 About OsmoTRX
 =============
 

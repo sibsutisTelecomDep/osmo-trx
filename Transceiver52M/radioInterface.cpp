@@ -21,10 +21,11 @@
  * See the COPYING file in the main directory for details.
  */
 
-#include "radioInterface.h"
-#include "Resampler.h"
 #include <Logger.h>
 #include <Threads.h>
+
+#include "Resampler.h"
+#include "metricCollector.hpp"
 
 extern "C" {
 #include <osmocom/core/utils.h>
@@ -68,24 +69,30 @@ bool RadioInterface::init(int type)
 
     powerScaling[i] = 1.0;
   }
-
+  startCollection();
   return true;
 }
 
 void RadioInterface::close()
 {
-  for (std::vector<RadioBuffer*>::iterator it = sendBuffer.begin(); it != sendBuffer.end(); ++it)
-          delete *it;
-  for (std::vector<RadioBuffer*>::iterator it = recvBuffer.begin(); it != recvBuffer.end(); ++it)
-          delete *it;
-  for (std::vector<short*>::iterator it = convertSendBuffer.begin(); it != convertSendBuffer.end(); ++it)
-          delete[] *it;
-  for (std::vector<short*>::iterator it = convertRecvBuffer.begin(); it != convertRecvBuffer.end(); ++it)
-          delete[] *it;
-  sendBuffer.resize(0);
-  recvBuffer.resize(0);
-  convertSendBuffer.resize(0);
-  convertRecvBuffer.resize(0);
+    stopCollection();
+
+    for (std::vector<RadioBuffer *>::iterator it = sendBuffer.begin();
+         it != sendBuffer.end(); ++it)
+        delete *it;
+    for (std::vector<RadioBuffer *>::iterator it = recvBuffer.begin();
+         it != recvBuffer.end(); ++it)
+        delete *it;
+    for (std::vector<short *>::iterator it = convertSendBuffer.begin();
+         it != convertSendBuffer.end(); ++it)
+        delete[] *it;
+    for (std::vector<short *>::iterator it = convertRecvBuffer.begin();
+         it != convertRecvBuffer.end(); ++it)
+        delete[] *it;
+    sendBuffer.resize(0);
+    recvBuffer.resize(0);
+    convertSendBuffer.resize(0);
+    convertRecvBuffer.resize(0);
 }
 
 double RadioInterface::fullScaleInputValue(void) {
@@ -305,6 +312,10 @@ VectorFIFO* RadioInterface::receiveFIFO(size_t chan)
 {
   if (chan >= mReceiveFIFO.size())
     return NULL;
+
+#ifdef METRIC_COLLECT
+  metricsCollector->collectFromRadioInterface(this, chan);
+#endif  // METRIC_COLLECT
 
   return &mReceiveFIFO[chan];
 }
