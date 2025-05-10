@@ -1,3 +1,6 @@
 [submodule "osmocom-bb"]
 	path = osmocom-bb
 	url = https://gitea.osmocom.org/phone-side/osmocom-bb.git
+[submodule "trx-visualizer"]
+	path = trx-visualizer
+	url = https://github.com/sibsutisTelecomDep/trx-visualizer
