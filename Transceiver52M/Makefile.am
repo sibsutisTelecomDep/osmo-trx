@@ -24,8 +24,8 @@ include $(top_srcdir)/Makefile.common
 SUBDIRS = arch device
 
 AM_CPPFLAGS = -Wall $(STD_DEFINES_AND_INCLUDES) -I${srcdir}/arch/common -I${srcdir}/device/common
-AM_CXXFLAGS = -lpthread $(LIBOSMOCORE_CFLAGS) $(LIBOSMOCTRL_CFLAGS) $(LIBOSMOVTY_CFLAGS)
-AM_CFLAGS = -lpthread $(LIBOSMOCORE_CFLAGS) $(LIBOSMOCTRL_CFLAGS) $(LIBOSMOVTY_CFLAGS)
+AM_CXXFLAGS = -g -O0 -lpthread $(LIBOSMOCORE_CFLAGS) $(LIBOSMOCTRL_CFLAGS) $(LIBOSMOVTY_CFLAGS)
+AM_CFLAGS = -g -O0 -lpthread $(LIBOSMOCORE_CFLAGS) $(LIBOSMOCTRL_CFLAGS) $(LIBOSMOVTY_CFLAGS)
 
 noinst_LTLIBRARIES = libtransceiver_common.la
 
@@ -48,7 +48,8 @@ libtransceiver_common_la_SOURCES = \
 	$(COMMON_SOURCES) \
 	Resampler.cpp \
 	radioInterfaceResamp.cpp \
-	radioInterfaceMulti.cpp
+	radioInterfaceMulti.cpp \
+	metricCollector.cpp
 
 noinst_HEADERS = \
 	Complex.h \
@@ -63,7 +64,8 @@ noinst_HEADERS = \
 	ChannelizerBase.h \
 	Channelizer.h \
 	Synthesis.h \
-	proto_trxd.h
+	proto_trxd.h \
+	metricCollector.h
 
 COMMON_LDADD = \
 	libtransceiver_common.la \
