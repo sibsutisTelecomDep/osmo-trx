@@ -1,3 +1,6 @@
+// #ifndef RADIO_INTERFACE_H
+// #define RADIO_INTERFACE_H
+
 /*
 * Copyright 2008 Free Software Foundation, Inc.
 *
@@ -12,23 +15,27 @@
 
 */
 
-#include "Channelizer.h"
+#include "sigProcLib.h"
 #include "GSMCommon.h"
 #include "LinkedLists.h"
-#include "Resampler.h"
-#include "Synthesis.h"
-#include "metricCollector.hpp"
-#include "radioBuffer.h"
-#include "radioClock.h"
 #include "radioDevice.h"
 #include "radioVector.h"
-#include "sigProcLib.h"
+#include "radioClock.h"
+#include "radioBuffer.h"
+#include "Resampler.h"
+#include "Channelizer.h"
+#include "Synthesis.h"
+
+#include "metricCollector.h"
 
 static const unsigned gSlotLen = 148;      ///< number of symbols per slot, not counting guard periods
 
 /** class to interface the transceiver with the USRP */
 class RadioInterface {
-
+  private:
+#ifdef METRIC_COLLECT
+   SignalMetricsCollector *metricsCollector;
+#endif  // METRIC_COLLECT
 protected:
   size_t mSPSTx;
   size_t mSPSRx;
@@ -58,9 +65,6 @@ protected:
   bool mOn;				      ///< indicates radio is on
 
 private:
-#define METRIC_COLLECT
- SignalMetricsCollector *metricsCollector;
-#endif  // METRIC_COLLECT
 
  /** format samples to USRP */
  int radioifyVector(signalVector &wVector, size_t chan, bool zero);
@@ -196,3 +200,5 @@ public:
   virtual double setRxGain(double dB, size_t chan);
   virtual double rssiOffset(size_t chan = 0);
 };
+
+// #endif // RADIO_INTERFACE_H

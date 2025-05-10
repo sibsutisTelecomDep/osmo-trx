@@ -21,11 +21,14 @@
  * See the COPYING file in the main directory for details.
  */
 
+#include "radioInterface.h"
+
 #include <Logger.h>
 #include <Threads.h>
 
 #include "Resampler.h"
-#include "metricCollector.hpp"
+
+//  #include "metricCollector.h"
 
 extern "C" {
 #include <osmocom/core/utils.h>
@@ -50,7 +53,8 @@ RadioInterface::RadioInterface(RadioDevice *wDevice, size_t tx_sps,
 
 RadioInterface::~RadioInterface(void)
 {
-  close();
+    delete metricsCollector;
+    close();
 }
 
 bool RadioInterface::init(int type)
@@ -69,13 +73,19 @@ bool RadioInterface::init(int type)
 
     powerScaling[i] = 1.0;
   }
-  startCollection();
+
+#ifdef METRIC_COLLECT
+  metricsCollector = new SignalMetricsCollector;
+  metricsCollector->startCollection();
+#endif  // METRIC_COLLECT
   return true;
 }
 
 void RadioInterface::close()
 {
-    stopCollection();
+#ifdef METRIC_COLLECT
+    metricsCollector->stopCollection();
+#endif  // METRIC_COLLECT
 
     for (std::vector<RadioBuffer *>::iterator it = sendBuffer.begin();
          it != sendBuffer.end(); ++it)
@@ -96,124 +106,112 @@ void RadioInterface::close()
 }
 
 double RadioInterface::fullScaleInputValue(void) {
-  return mDevice->fullScaleInputValue();
+    return mDevice->fullScaleInputValue();
 }
 
 double RadioInterface::fullScaleOutputValue(void) {
-  return mDevice->fullScaleOutputValue();
+    return mDevice->fullScaleOutputValue();
 }
 
-int RadioInterface::setPowerAttenuation(int atten, size_t chan)
-{
-  double rfAtten, digAtten;
+int RadioInterface::setPowerAttenuation(int atten, size_t chan) {
+    double rfAtten, digAtten;
 
-  if (chan >= mChans) {
-    LOG(ALERT) << "Invalid channel requested";
-    return -1;
-  }
+    if (chan >= mChans) {
+        LOG(ALERT) << "Invalid channel requested";
+        return -1;
+    }
 
-  if (atten < 0.0)
-    atten = 0.0;
+    if (atten < 0.0) atten = 0.0;
 
-  rfAtten = mDevice->setPowerAttenuation((double) atten, chan);
-  digAtten = (double) atten - rfAtten;
+    rfAtten = mDevice->setPowerAttenuation((double)atten, chan);
+    digAtten = (double)atten - rfAtten;
 
-  if (digAtten < 1.0)
-    powerScaling[chan] = 1.0;
-  else
-    powerScaling[chan] = 1.0 / sqrt(pow(10, digAtten / 10.0));
+    if (digAtten < 1.0)
+        powerScaling[chan] = 1.0;
+    else
+        powerScaling[chan] = 1.0 / sqrt(pow(10, digAtten / 10.0));
 
-  return atten;
+    return atten;
 }
 
-int RadioInterface::getNominalTxPower(size_t chan)
-{
-  if (chan >= mChans) {
-    LOG(ALERT) << "Invalid channel requested";
-    return -1;
-  }
+int RadioInterface::getNominalTxPower(size_t chan) {
+    if (chan >= mChans) {
+        LOG(ALERT) << "Invalid channel requested";
+        return -1;
+    }
 
     return mDevice->getNominalTxPower(chan);
 }
 
-int RadioInterface::radioifyVector(signalVector &wVector,
-                                   size_t chan, bool zero)
-{
-  if (zero)
-    sendBuffer[chan]->zero(wVector.size());
-  else
-    sendBuffer[chan]->write((float *) wVector.begin(), wVector.size());
+int RadioInterface::radioifyVector(signalVector &wVector, size_t chan,
+                                   bool zero) {
+    if (zero)
+        sendBuffer[chan]->zero(wVector.size());
+    else
+        sendBuffer[chan]->write((float *)wVector.begin(), wVector.size());
 
-  return wVector.size();
+    return wVector.size();
 }
 
-int RadioInterface::unRadioifyVector(signalVector *newVector, size_t chan)
-{
-  if (newVector->size() > recvBuffer[chan]->getAvailSamples()) {
-    LOG(ALERT) << "Insufficient number of samples in receive buffer";
-    return -1;
-  }
+int RadioInterface::unRadioifyVector(signalVector *newVector, size_t chan) {
+    if (newVector->size() > recvBuffer[chan]->getAvailSamples()) {
+        LOG(ALERT) << "Insufficient number of samples in receive buffer";
+        return -1;
+    }
 
-  recvBuffer[chan]->read((float *) newVector->begin(), newVector->size());
+    recvBuffer[chan]->read((float *)newVector->begin(), newVector->size());
 
-  return newVector->size();
+    return newVector->size();
 }
 
-bool RadioInterface::tuneTx(double freq, size_t chan)
-{
-  return mDevice->setTxFreq(freq, chan);
+bool RadioInterface::tuneTx(double freq, size_t chan) {
+    return mDevice->setTxFreq(freq, chan);
 }
 
-bool RadioInterface::tuneRx(double freq, size_t chan)
-{
-  return mDevice->setRxFreq(freq, chan);
+bool RadioInterface::tuneRx(double freq, size_t chan) {
+    return mDevice->setRxFreq(freq, chan);
 }
 
 /** synchronization thread loop */
-void *AlignRadioServiceLoopAdapter(RadioInterface *radioInterface)
-{
-  set_selfthread_name("AlignRadio");
-  OSMO_ASSERT(osmo_cpu_sched_vty_apply_localthread() == 0);
-  while (1) {
-    sleep(60);
-    radioInterface->alignRadio();
-    pthread_testcancel();
-  }
-  return NULL;
+void *AlignRadioServiceLoopAdapter(RadioInterface *radioInterface) {
+    set_selfthread_name("AlignRadio");
+    OSMO_ASSERT(osmo_cpu_sched_vty_apply_localthread() == 0);
+    while (1) {
+        sleep(60);
+        radioInterface->alignRadio();
+        pthread_testcancel();
+    }
+    return NULL;
 }
 
 void RadioInterface::alignRadio() {
-  mDevice->updateAlignment(writeTimestamp+ (TIMESTAMP) 10000);
+    mDevice->updateAlignment(writeTimestamp + (TIMESTAMP)10000);
 }
 
-bool RadioInterface::start()
-{
-  if (mOn)
-    return true;
+bool RadioInterface::start() {
+    if (mOn) return true;
 
-  LOG(INFO) << "Starting radio device";
-  if (mDevice->requiresRadioAlign())
+    LOG(INFO) << "Starting radio device";
+    if (mDevice->requiresRadioAlign())
         mAlignRadioServiceLoopThread.start(
-                                (void * (*)(void*))AlignRadioServiceLoopAdapter,
-                                (void*)this);
+            (void *(*)(void *))AlignRadioServiceLoopAdapter, (void *)this);
 
-  if (!mDevice->start())
-    return false;
+    if (!mDevice->start()) return false;
 
-  for (size_t i = 0; i < mChans; i++) {
-    sendBuffer[i]->reset();
-    recvBuffer[i]->reset();
-  }
+    for (size_t i = 0; i < mChans; i++) {
+        sendBuffer[i]->reset();
+        recvBuffer[i]->reset();
+    }
 
-  writeTimestamp = mDevice->initialWriteTimestamp();
-  readTimestamp = mDevice->initialReadTimestamp();
+    writeTimestamp = mDevice->initialWriteTimestamp();
+    readTimestamp = mDevice->initialReadTimestamp();
 
-  mDevice->updateAlignment(writeTimestamp-10000);
-  mDevice->updateAlignment(writeTimestamp-10000);
+    mDevice->updateAlignment(writeTimestamp - 10000);
+    mDevice->updateAlignment(writeTimestamp - 10000);
 
-  mOn = true;
-  LOG(INFO) << "Radio started";
-  return true;
+    mOn = true;
+    LOG(INFO) << "Radio started";
+    return true;
 }
 
 /*
@@ -223,81 +221,75 @@ bool RadioInterface::start()
  * stop command issuance generally doesn't return confirmation on device status,
  * this call will only return false if the device is already stopped.
  */
-bool RadioInterface::stop()
-{
-  if (!mOn || !mDevice->stop())
-    return false;
+bool RadioInterface::stop() {
+    if (!mOn || !mDevice->stop()) return false;
 
-  mOn = false;
-  return true;
+    mOn = false;
+    return true;
 }
 
 void RadioInterface::driveTransmitRadio(std::vector<signalVector *> &bursts,
-                                        std::vector<bool> &zeros)
-{
-  if (!mOn)
-    return;
+                                        std::vector<bool> &zeros) {
+    if (!mOn) return;
 
-  for (size_t i = 0; i < mChans; i++)
-    radioifyVector(*bursts[i], i, zeros[i]);
+    for (size_t i = 0; i < mChans; i++) radioifyVector(*bursts[i], i, zeros[i]);
 
-  while (pushBuffer());
+    while (pushBuffer());
 }
 
-int RadioInterface::driveReceiveRadio()
-{
-  radioVector *burst = NULL;
+int RadioInterface::driveReceiveRadio() {
+    radioVector *burst = NULL;
 
-  if (!mOn)
-    return 0;
+    if (!mOn) return 0;
 
-  if (pullBuffer() < 0)
-    return  -1;
+    if (pullBuffer() < 0) return -1;
 
-  GSM::Time rcvClock = mClock.get();
-  rcvClock.decTN(receiveOffset);
-  unsigned tN = rcvClock.TN();
-  int recvSz = recvBuffer[0]->getAvailSamples();
-  const int symbolsPerSlot = gSlotLen + 8;
-  int burstSize;
+    GSM::Time rcvClock = mClock.get();
+    rcvClock.decTN(receiveOffset);
+    unsigned tN = rcvClock.TN();
+    int recvSz = recvBuffer[0]->getAvailSamples();
+    const int symbolsPerSlot = gSlotLen + 8;
+    int burstSize;
 
-  if (mSPSRx == 4)
-    burstSize = 625;
-  else
-    burstSize = symbolsPerSlot + (tN % 4 == 0);
+    if (mSPSRx == 4)
+        burstSize = 625;
+    else
+        burstSize = symbolsPerSlot + (tN % 4 == 0);
 
-  /*
-   * Pre-allocate head room for the largest correlation size
-   * so we can later avoid a re-allocation and copy
-   * */
-  size_t head = GSM::gRACHSynchSequenceTS0.size();
+    /*
+     * Pre-allocate head room for the largest correlation size
+     * so we can later avoid a re-allocation and copy
+     * */
+    size_t head = GSM::gRACHSynchSequenceTS0.size();
 
-  /*
-   * Form receive bursts and pass up to transceiver. Use repeating
-   * pattern of 157-156-156-156 symbols per timeslot
-   */
-  while (recvSz > burstSize) {
-    for (size_t i = 0; i < mChans; i++) {
-      burst = new radioVector(rcvClock, burstSize, head);
-      unRadioifyVector(burst->getVector(), i);
+    /*
+     * Form receive bursts and pass up to transceiver. Use repeating
+     * pattern of 157-156-156-156 symbols per timeslot
+     */
+    while (recvSz > burstSize) {
+        for (size_t i = 0; i < mChans; i++) {
+            burst = new radioVector(rcvClock, burstSize, head);
+            unRadioifyVector(burst->getVector(), i);
 
-      if (mReceiveFIFO[i].size() < 32)
-        mReceiveFIFO[i].write(burst);
-      else
-        delete burst;
+            if (mReceiveFIFO[i].size() < 32) {
+                mReceiveFIFO[i].write(burst);
+#ifdef METRIC_COLLECT
+                metricsCollector->collectFromRadioInterface(this, i);
+#endif  // METRIC_COLLECT
+            } else
+                delete burst;
+        }
+
+        mClock.incTN();
+        rcvClock.incTN();
+        recvSz -= burstSize;
+
+        tN = rcvClock.TN();
+
+        if (mSPSRx != 4) burstSize = (symbolsPerSlot + (tN % 4 == 0)) * mSPSRx;
     }
 
-    mClock.incTN();
-    rcvClock.incTN();
-    recvSz -= burstSize;
-
-    tN = rcvClock.TN();
-
-    if (mSPSRx != 4)
-      burstSize = (symbolsPerSlot + (tN % 4 == 0)) * mSPSRx;
-  }
-
-  return 1;
+    return 1;
 }
 
 bool RadioInterface::isUnderrun()
@@ -312,10 +304,6 @@ VectorFIFO* RadioInterface::receiveFIFO(size_t chan)
 {
   if (chan >= mReceiveFIFO.size())
     return NULL;
-
-#ifdef METRIC_COLLECT
-  metricsCollector->collectFromRadioInterface(this, chan);
-#endif  // METRIC_COLLECT
 
   return &mReceiveFIFO[chan];
 }
