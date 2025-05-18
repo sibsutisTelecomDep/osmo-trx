@@ -352,6 +352,49 @@ AC_MSG_RESULT([CXXFLAGS="$CXXFLAGS"])
 AC_MSG_RESULT([LDFLAGS="$LDFLAGS"])
 
 
+AC_PATH_PROG([CMAKE], [cmake])
+AC_ARG_ENABLE([visualizer],
+    AS_HELP_STRING([--enable-visualizer], [Enable TRX visualizer support (default: no)]),
+    [enable_visualizer=$enableval], [enable_visualizer=no])
+
+AM_CONDITIONAL([ENABLE_VISUALIZER], [test "x$enable_visualizer" = xyes])
+
+if test "x$enable_visualizer" = xyes; then
+    if test -z "$CMAKE"; then
+        AC_MSG_ERROR([CMake not found, but visualizer is enabled. Please install CMake or disable visualizer with --disable-visualizer.])
+    fi
+    # Проверка наличия исходников визуализатора
+    if test ! -d "$srcdir/trx-visualizer"; then
+        AC_MSG_ERROR([Visualizer source directory '$srcdir/trx-visualizer' not found. Did you initialize the submodule? ('git submodule update --init --recursive')])
+    fi
+    if test ! -f "$srcdir/trx-visualizer/CMakeLists.txt"; then
+        AC_MSG_ERROR([Visualizer CMakeLists.txt not found in '$srcdir/trx-visualizer'.])
+    fi
+
+    PKG_CHECK_MODULES([SDL2], [sdl2 >= 2.0.0], [have_sdl2=yes], [have_sdl2=no])
+    if test "x$have_sdl2" = xno; then
+        AC_MSG_ERROR([SDL2 not found, but visualizer is enabled. Please install libsdl2-dev (or equivalent).])
+    fi
+    PKG_CHECK_MODULES([GLEW], [glew >= 1.13], [have_glew=yes], [have_glew=no])
+    if test "x$have_glew" = xno; then
+        AC_MSG_ERROR([GLEW not found, but visualizer is enabled. Please install libglew-dev (or equivalent).])
+    fi
+    AC_CHECK_LIB([GL], [glVertex3f], [],
+                 [AC_MSG_ERROR([OpenGL library (libGL) not found, but visualizer is enabled.])])
+
+    AC_DEFINE([WITH_VISUALIZER], [1], [Define if TRX visualizer is enabled])
+    AC_DEFINE([ENABLE_VISUALIZER], [1], [Define if TRX visualizer is enabled])
+    # Сохраняем флаги для использования в Makefile.am
+    AC_SUBST([SDL2_CFLAGS])
+    AC_SUBST([SDL2_LIBS])
+    AC_SUBST([GLEW_CFLAGS])
+    AC_SUBST([GLEW_LIBS])
+    # Для OpenGL обычно достаточно -lGL, pkg-config может не быть
+    OPENGL_LIBS="-lGL"
+    AC_SUBST([OPENGL_LIBS])
+fi
+
+
 dnl Output files
 AC_CONFIG_FILES([\
     Makefile \

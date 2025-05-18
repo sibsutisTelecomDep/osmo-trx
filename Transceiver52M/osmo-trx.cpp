@@ -61,6 +61,13 @@ extern "C" {
 #include "trx_rate_ctr.h"
 }
 
+// #define ENABLE_VISUALIZER
+
+#ifdef ENABLE_VISUALIZER
+#include "shared_metrics.h"
+#include "visualizer_api.h"
+#endif
+
 #define DEFAULT_CONFIG_FILE	"osmo-trx.cfg"
 
 #define charp2str(a) ((a) ? std::string(a) : std::string(""))
@@ -590,6 +597,11 @@ static void trx_stop()
 	delete transceiver;
 	delete radio;
 	delete usrp;
+
+#ifdef ENABLE_VISUALIZER
+	LOG(NOTICE) << "Shutting down visualizer..." << std::endl;
+	visualizer_shutdown();
+#endif // ENABLE_VISUALIZER
 }
 
 static int trx_start(struct trx_ctx *trx)
@@ -620,6 +632,11 @@ static int trx_start(struct trx_ctx *trx)
 	chans = transceiver->numChans();
 	LOG(NOTICE) << "-- Transceiver active with "
 		  << chans << " channel(s)" << std::endl;
+
+#ifdef ENABLE_VISUALIZER
+	char* blank; // Заглушка на случай если вдруг нам нужно будет передавать параметры
+	visualizer_init(0, &blank);
+#endif // ENABLE_VISUALIZER
 
 	return 0;
 

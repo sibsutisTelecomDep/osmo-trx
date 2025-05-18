@@ -1,4 +1,7 @@
 # build results
+trx-visualizer_build
+*.a
+*.so
 *.o
 *.lo
 *.la

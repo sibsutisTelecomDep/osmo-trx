@@ -6,6 +6,9 @@
 git clone --recursive git@github.com:sibsutisTelecomDep/osmo-trx.git
 ```
 
+--enable-visualizer
+
+
 About OsmoTRX
 =============
 
